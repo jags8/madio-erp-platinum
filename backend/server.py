@@ -448,6 +448,51 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user['id'] = str(user['_id'])
     return user
 
+def check_role_permission(user: dict, required_roles: List[str]) -> bool:
+    """Check if user has required role"""
+    user_roles = [role['role'] for role in user.get('roles', [])]
+    return any(role in user_roles for role in required_roles)
+
+async def reserve_inventory(item_id: str, quantity: float) -> bool:
+    """Reserve inventory for quotation"""
+    item = await db.inventory.find_one({'_id': ObjectId(item_id)})
+    if not item:
+        return False
+    
+    available = item.get('quantity', 0) - item.get('reserved', 0)
+    if available < quantity:
+        return False
+    
+    await db.inventory.update_one(
+        {'_id': ObjectId(item_id)},
+        {'$inc': {'reserved': quantity}}
+    )
+    return True
+
+async def release_inventory_reservation(item_id: str, quantity: float):
+    """Release reserved inventory"""
+    await db.inventory.update_one(
+        {'_id': ObjectId(item_id)},
+        {'$inc': {'reserved': -quantity}}
+    )
+
+async def deduct_inventory(item_id: str, quantity: float) -> bool:
+    """Deduct inventory on order confirmation"""
+    item = await db.inventory.find_one({'_id': ObjectId(item_id)})
+    if not item:
+        return False
+    
+    await db.inventory.update_one(
+        {'_id': ObjectId(item_id)},
+        {
+            '$inc': {
+                'quantity': -quantity,
+                'reserved': -quantity
+            }
+        }
+    )
+    return True
+
 # ===== Auth Routes =====
 
 @api_router.post('/auth/register')
