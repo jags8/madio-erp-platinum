@@ -1542,6 +1542,193 @@ async def get_executive_dashboard(current_user: dict = Depends(get_current_user)
         'divisions': division_stats
     }
 
+# ===== Video Generation =====
+
+@api_router.post('/video-generation')
+async def create_video(request: VideoGenerationRequest, current_user: dict = Depends(get_current_user)):
+    """Generate video using AI (Sora 2 integration ready)"""
+    # Generate video ID
+    count = await db.video_generations.count_documents({})
+    video_id = f'VID-{datetime.now().strftime("%Y%m")}-{count + 1:04d}'
+    
+    video_doc = {
+        'video_id': video_id,
+        'user_id': current_user['id'],
+        'prompt': request.prompt,
+        'duration': request.duration,
+        'aspect_ratio': request.aspect_ratio,
+        'style': request.style,
+        'status': 'processing',
+        'created_at': datetime.now(timezone.utc)
+    }
+    
+    result = await db.video_generations.insert_one(video_doc)
+    
+    # TODO: Integrate with Sora 2 API here
+    # For now, return processing status
+    # In production, this would trigger async job to generate video
+    
+    return {
+        'id': str(result.inserted_id),
+        'video_id': video_id,
+        'status': 'processing',
+        'message': 'Video generation started. Check status using video_id'
+    }
+
+@api_router.get('/video-generation/{video_id}')
+async def get_video_status(video_id: str, current_user: dict = Depends(get_current_user)):
+    """Get video generation status"""
+    video = await db.video_generations.find_one({'video_id': video_id})
+    if not video:
+        raise HTTPException(status_code=404, detail='Video not found')
+    
+    video['id'] = str(video['_id'])
+    del video['_id']
+    return video
+
+@api_router.get('/video-generation')
+async def list_videos(current_user: dict = Depends(get_current_user)):
+    """List all video generations"""
+    videos = await db.video_generations.find({'user_id': current_user['id']}).sort('created_at', -1).to_list(50)
+    for video in videos:
+        video['id'] = str(video['_id'])
+        del video['_id']
+    return videos
+
+# ===== Reports & Analytics =====
+
+@api_router.get('/reports/sales')
+async def get_sales_report(
+    period: str = 'weekly',  # 'daily', 'weekly', 'monthly'
+    division: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Sales report with period grouping"""
+    # Check permission
+    if not check_role_permission(current_user, ['admin', 'finance', 'promoter']):
+        raise HTTPException(status_code=403, detail='Insufficient permissions')
+    
+    # Calculate date range
+    now = datetime.now(timezone.utc)
+    if period == 'daily':
+        start_date = now - timedelta(days=30)
+        group_format = '%Y-%m-%d'
+    elif period == 'weekly':
+        start_date = now - timedelta(days=90)
+        group_format = '%Y-W%U'
+    else:  # monthly
+        start_date = now - timedelta(days=365)
+        group_format = '%Y-%m'
+    
+    # Build aggregation pipeline
+    match_stage = {'order_date': {'$gte': start_date}}
+    if division:
+        match_stage['division'] = division
+    
+    pipeline = [
+        {'$match': match_stage},
+        {'$group': {
+            '_id': {'$dateToString': {'format': group_format, 'date': '$order_date'}},
+            'total_orders': {'$sum': 1},
+            'total_revenue': {'$sum': '$net_total'},
+            'avg_order_value': {'$avg': '$net_total'}
+        }},
+        {'$sort': {'_id': 1}}
+    ]
+    
+    results = await db.orders.aggregate(pipeline).to_list(100)
+    return results
+
+@api_router.get('/reports/project-status')
+async def get_project_status_report(current_user: dict = Depends(get_current_user)):
+    """Project status summary"""
+    pipeline = [
+        {'$group': {
+            '_id': '$status',
+            'count': {'$sum': 1},
+            'total_budget': {'$sum': '$budget'},
+            'total_spent': {'$sum': '$actual_cost'}
+        }}
+    ]
+    
+    results = await db.projects.aggregate(pipeline).to_list(20)
+    return results
+
+@api_router.get('/reports/profit-loss')
+async def get_profit_loss_report(
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Comprehensive P&L report"""
+    # Check permission - Finance only
+    if not check_role_permission(current_user, ['admin', 'finance']):
+        raise HTTPException(status_code=403, detail='Insufficient permissions')
+    
+    if not start_date:
+        start_date = datetime.now(timezone.utc).replace(day=1)
+    if not end_date:
+        end_date = datetime.now(timezone.utc)
+    
+    # Revenue
+    revenue_pipeline = [
+        {'$match': {'order_date': {'$gte': start_date, '$lte': end_date}}},
+        {'$group': {
+            '_id': None,
+            'total_revenue': {'$sum': '$net_total'},
+            'total_orders': {'$sum': 1}
+        }}
+    ]
+    revenue_result = await db.orders.aggregate(revenue_pipeline).to_list(1)
+    total_revenue = revenue_result[0]['total_revenue'] if revenue_result else 0
+    total_orders = revenue_result[0]['total_orders'] if revenue_result else 0
+    
+    # Expenses (Petty Cash)
+    expenses_pipeline = [
+        {'$match': {
+            'created_at': {'$gte': start_date, '$lte': end_date},
+            'status': {'$in': ['approved', 'disbursed']}
+        }},
+        {'$group': {
+            '_id': '$category',
+            'total': {'$sum': '$amount'}
+        }}
+    ]
+    expenses = await db.petty_cash.aggregate(expenses_pipeline).to_list(20)
+    total_expenses = sum(exp['total'] for exp in expenses)
+    
+    # Cost of Goods (from inventory)
+    # This is simplified - in production would track actual COGS
+    cogs_estimate = total_revenue * 0.6  # Assume 60% COGS
+    
+    # Calculate P&L
+    gross_profit = total_revenue - cogs_estimate
+    operating_expenses = total_expenses
+    net_profit = gross_profit - operating_expenses
+    profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
+    
+    return {
+        'period': {
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat()
+        },
+        'revenue': {
+            'total_revenue': total_revenue,
+            'total_orders': total_orders,
+            'avg_order_value': total_revenue / total_orders if total_orders > 0 else 0
+        },
+        'costs': {
+            'cogs': cogs_estimate,
+            'operating_expenses': operating_expenses,
+            'expenses_breakdown': expenses
+        },
+        'profit': {
+            'gross_profit': gross_profit,
+            'net_profit': net_profit,
+            'profit_margin': round(profit_margin, 2)
+        }
+    }
+
 # Health check
 @api_router.get('/')
 async def root():
