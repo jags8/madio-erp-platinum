@@ -1,15 +1,20 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, BackgroundTasks, UploadFile, File
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone
-
+from datetime import datetime, timezone, timedelta
+import bcrypt
+import jwt
+from bson import ObjectId
+import httpx
+import io
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,71 +24,632 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# JWT Configuration
+JWT_SECRET = os.getenv('JWT_SECRET', 'your-secret-key-change-in-production')
+JWT_ALGORITHM = 'HS256'
+JWT_EXPIRATION_HOURS = 24
 
-# Create a router with the /api prefix
+# Security
+security = HTTPBearer()
+
+app = FastAPI(title="BizFlow Central CRM")
 api_router = APIRouter(prefix="/api")
 
+# Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+# ===== Pydantic Models =====
+
+class PyObjectId(str):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
     
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    @classmethod
+    def validate(cls, v):
+        if not ObjectId.is_valid(v):
+            raise ValueError('Invalid ObjectId')
+        return str(v)
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class UserRole(BaseModel):
+    role: str  # 'admin', 'finance', 'team_lead', 'promoter', 'staff'
+    business_area_id: Optional[str] = None
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+class UserCreate(BaseModel):
+    phone: str
+    pin: str
+    name: str
+    roles: List[UserRole]
+    email: Optional[EmailStr] = None
+
+class UserLogin(BaseModel):
+    phone: str
+    pin: str
+
+class UserResponse(BaseModel):
+    id: str
+    phone: str
+    name: str
+    roles: List[UserRole]
+    email: Optional[str] = None
+    created_at: datetime
+
+class BusinessArea(BaseModel):
+    id: Optional[str] = None
+    name: str
+    description: str
+    stores: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    is_active: bool = True
+
+class Lead(BaseModel):
+    id: Optional[str] = None
+    business_area_id: str
+    customer_name: str
+    customer_phone: str
+    customer_email: Optional[str] = None
+    source: str  # 'architect_referral', 'walk_in', 'website', 'whatsapp'
+    status: str  # 'new', 'contacted', 'qualified', 'proposal', 'won', 'lost'
+    assigned_to: Optional[str] = None
+    estimated_value: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Project(BaseModel):
+    id: Optional[str] = None
+    business_area_id: str
+    lead_id: Optional[str] = None
+    name: str
+    customer_name: str
+    status: str  # 'planning', 'in_progress', 'on_hold', 'completed', 'cancelled'
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    budget: Optional[float] = None
+    actual_cost: Optional[float] = None
+    milestones: List[Dict[str, Any]] = []
+    assigned_team: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class InventoryItem(BaseModel):
+    id: Optional[str] = None
+    business_area_id: str
+    store_location: str
+    item_name: str
+    item_code: str
+    category: str
+    quantity: int
+    unit: str
+    reorder_level: int
+    unit_price: float
+    supplier: Optional[str] = None
+    last_restocked: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Payment(BaseModel):
+    id: Optional[str] = None
+    project_id: Optional[str] = None
+    customer_name: str
+    amount: float
+    payment_type: str  # 'advance', 'milestone', 'final', 'refund'
+    payment_method: str  # 'cash', 'bank_transfer', 'cheque', 'upi'
+    status: str  # 'pending', 'received', 'failed'
+    transaction_ref: Optional[str] = None
+    notes: Optional[str] = None
+    payment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PettyCash(BaseModel):
+    id: Optional[str] = None
+    requested_by: str
+    business_area_id: str
+    amount: float
+    purpose: str
+    category: str  # 'travel', 'supplies', 'meals', 'utilities', 'other'
+    status: str  # 'pending', 'approved', 'rejected', 'disbursed'
+    approved_by: Optional[str] = None
+    approval_date: Optional[datetime] = None
+    receipt_url: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Attendance(BaseModel):
+    id: Optional[str] = None
+    user_id: str
+    check_in: datetime
+    check_out: Optional[datetime] = None
+    location_lat: float
+    location_lng: float
+    location_address: Optional[str] = None
+    status: str  # 'present', 'half_day', 'late'
+    notes: Optional[str] = None
+
+class Task(BaseModel):
+    id: Optional[str] = None
+    title: str
+    description: str
+    priority: str  # 'low', 'medium', 'high', 'urgent'
+    status: str  # 'todo', 'in_progress', 'review', 'completed'
+    assigned_to: str
+    assigned_by: str
+    project_id: Optional[str] = None
+    due_date: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    whatsapp_notified: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Document(BaseModel):
+    id: Optional[str] = None
+    name: str
+    file_type: str
+    file_size: int
+    storage_type: str  # 'google_drive', 'sharepoint'
+    storage_url: str
+    uploaded_by: str
+    business_area_id: Optional[str] = None
+    project_id: Optional[str] = None
+    tags: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DashboardStats(BaseModel):
+    total_leads: int
+    active_projects: int
+    pending_payments: float
+    low_stock_items: int
+    pending_petty_cash: int
+    today_attendance: int
+
+# ===== Helper Functions =====
+
+def hash_pin(pin: str) -> str:
+    return bcrypt.hashpw(pin.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_pin(pin: str, hashed: str) -> bool:
+    return bcrypt.checkpw(pin.encode('utf-8'), hashed.encode('utf-8'))
+
+def create_access_token(user_id: str) -> str:
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def verify_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload['user_id']
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail='Token expired')
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail='Invalid token')
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    user_id = verify_token(credentials.credentials)
+    user = await db.users.find_one({'_id': ObjectId(user_id)}, {'pin_hash': 0})
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    user['id'] = str(user['_id'])
+    return user
+
+# ===== Auth Routes =====
+
+@api_router.post('/auth/register')
+async def register(user_data: UserCreate):
+    existing = await db.users.find_one({'phone': user_data.phone})
+    if existing:
+        raise HTTPException(status_code=400, detail='Phone number already registered')
+    
+    user_doc = {
+        'phone': user_data.phone,
+        'pin_hash': hash_pin(user_data.pin),
+        'name': user_data.name,
+        'roles': [r.model_dump() for r in user_data.roles],
+        'email': user_data.email,
+        'created_at': datetime.now(timezone.utc)
+    }
+    
+    result = await db.users.insert_one(user_doc)
+    token = create_access_token(str(result.inserted_id))
+    
+    return {'token': token, 'user_id': str(result.inserted_id), 'name': user_data.name}
+
+@api_router.post('/auth/login')
+async def login(credentials: UserLogin):
+    user = await db.users.find_one({'phone': credentials.phone})
+    if not user or not verify_pin(credentials.pin, user['pin_hash']):
+        raise HTTPException(status_code=401, detail='Invalid phone or PIN')
+    
+    token = create_access_token(str(user['_id']))
+    return {
+        'token': token,
+        'user_id': str(user['_id']),
+        'name': user['name'],
+        'roles': user['roles']
+    }
+
+@api_router.get('/auth/me')
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return current_user
+
+# ===== Business Areas =====
+
+@api_router.post('/business-areas')
+async def create_business_area(area: BusinessArea, current_user: dict = Depends(get_current_user)):
+    area_doc = area.model_dump(exclude={'id'})
+    result = await db.business_areas.insert_one(area_doc)
+    return {'id': str(result.inserted_id), **area_doc}
+
+@api_router.get('/business-areas')
+async def list_business_areas(current_user: dict = Depends(get_current_user)):
+    areas = await db.business_areas.find({'is_active': True}).to_list(100)
+    for area in areas:
+        area['id'] = str(area['_id'])
+        del area['_id']
+    return areas
+
+@api_router.get('/business-areas/{area_id}')
+async def get_business_area(area_id: str, current_user: dict = Depends(get_current_user)):
+    area = await db.business_areas.find_one({'_id': ObjectId(area_id)})
+    if not area:
+        raise HTTPException(status_code=404, detail='Business area not found')
+    area['id'] = str(area['_id'])
+    del area['_id']
+    return area
+
+# ===== Leads =====
+
+@api_router.post('/leads')
+async def create_lead(lead: Lead, current_user: dict = Depends(get_current_user)):
+    lead_doc = lead.model_dump(exclude={'id'})
+    result = await db.leads.insert_one(lead_doc)
+    return {'id': str(result.inserted_id), **lead_doc}
+
+@api_router.get('/leads')
+async def list_leads(
+    business_area_id: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if business_area_id:
+        query['business_area_id'] = business_area_id
+    if status:
+        query['status'] = status
+    
+    leads = await db.leads.find(query).sort('created_at', -1).to_list(100)
+    for lead in leads:
+        lead['id'] = str(lead['_id'])
+        del lead['_id']
+    return leads
+
+@api_router.patch('/leads/{lead_id}')
+async def update_lead(lead_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.leads.update_one({'_id': ObjectId(lead_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Lead not found')
+    return {'message': 'Lead updated successfully'}
+
+# ===== Projects =====
+
+@api_router.post('/projects')
+async def create_project(project: Project, current_user: dict = Depends(get_current_user)):
+    project_doc = project.model_dump(exclude={'id'})
+    result = await db.projects.insert_one(project_doc)
+    return {'id': str(result.inserted_id), **project_doc}
+
+@api_router.get('/projects')
+async def list_projects(
+    business_area_id: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if business_area_id:
+        query['business_area_id'] = business_area_id
+    if status:
+        query['status'] = status
+    
+    projects = await db.projects.find(query).sort('created_at', -1).to_list(100)
+    for project in projects:
+        project['id'] = str(project['_id'])
+        del project['_id']
+    return projects
+
+@api_router.patch('/projects/{project_id}')
+async def update_project(project_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.projects.update_one({'_id': ObjectId(project_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Project not found')
+    return {'message': 'Project updated successfully'}
+
+# ===== Inventory =====
+
+@api_router.post('/inventory')
+async def create_inventory_item(item: InventoryItem, current_user: dict = Depends(get_current_user)):
+    item_doc = item.model_dump(exclude={'id'})
+    result = await db.inventory.insert_one(item_doc)
+    return {'id': str(result.inserted_id), **item_doc}
+
+@api_router.get('/inventory')
+async def list_inventory(
+    business_area_id: Optional[str] = None,
+    low_stock: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if business_area_id:
+        query['business_area_id'] = business_area_id
+    if low_stock:
+        query['$expr'] = {'$lte': ['$quantity', '$reorder_level']}
+    
+    items = await db.inventory.find(query).sort('item_name', 1).to_list(200)
+    for item in items:
+        item['id'] = str(item['_id'])
+        del item['_id']
+    return items
+
+@api_router.patch('/inventory/{item_id}')
+async def update_inventory(item_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.inventory.update_one({'_id': ObjectId(item_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Inventory item not found')
+    return {'message': 'Inventory updated successfully'}
+
+# ===== Finance =====
+
+@api_router.post('/payments')
+async def create_payment(payment: Payment, current_user: dict = Depends(get_current_user)):
+    payment_doc = payment.model_dump(exclude={'id'})
+    result = await db.payments.insert_one(payment_doc)
+    return {'id': str(result.inserted_id), **payment_doc}
+
+@api_router.get('/payments')
+async def list_payments(
+    status: Optional[str] = None,
+    project_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if status:
+        query['status'] = status
+    if project_id:
+        query['project_id'] = project_id
+    
+    payments = await db.payments.find(query).sort('payment_date', -1).to_list(100)
+    for payment in payments:
+        payment['id'] = str(payment['_id'])
+        del payment['_id']
+    return payments
+
+# ===== Petty Cash =====
+
+@api_router.post('/petty-cash')
+async def create_petty_cash_request(request_data: PettyCash, current_user: dict = Depends(get_current_user)):
+    request_data.requested_by = current_user['id']
+    request_doc = request_data.model_dump(exclude={'id'})
+    result = await db.petty_cash.insert_one(request_doc)
+    return {'id': str(result.inserted_id), **request_doc}
+
+@api_router.get('/petty-cash')
+async def list_petty_cash(
+    status: Optional[str] = None,
+    business_area_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if status:
+        query['status'] = status
+    if business_area_id:
+        query['business_area_id'] = business_area_id
+    
+    requests = await db.petty_cash.find(query).sort('created_at', -1).to_list(100)
+    for req in requests:
+        req['id'] = str(req['_id'])
+        del req['_id']
+    return requests
+
+@api_router.patch('/petty-cash/{request_id}/approve')
+async def approve_petty_cash(request_id: str, current_user: dict = Depends(get_current_user)):
+    update = {
+        'status': 'approved',
+        'approved_by': current_user['id'],
+        'approval_date': datetime.now(timezone.utc),
+        'updated_at': datetime.now(timezone.utc)
+    }
+    result = await db.petty_cash.update_one({'_id': ObjectId(request_id)}, {'$set': update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Request not found')
+    return {'message': 'Petty cash approved'}
+
+@api_router.patch('/petty-cash/{request_id}/reject')
+async def reject_petty_cash(request_id: str, notes: str, current_user: dict = Depends(get_current_user)):
+    update = {
+        'status': 'rejected',
+        'approved_by': current_user['id'],
+        'approval_date': datetime.now(timezone.utc),
+        'notes': notes,
+        'updated_at': datetime.now(timezone.utc)
+    }
+    result = await db.petty_cash.update_one({'_id': ObjectId(request_id)}, {'$set': update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Request not found')
+    return {'message': 'Petty cash rejected'}
+
+# ===== Attendance =====
+
+@api_router.post('/attendance/check-in')
+async def check_in(
+    location_lat: float,
+    location_lng: float,
+    location_address: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    # Check if already checked in today
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    existing = await db.attendance.find_one({
+        'user_id': current_user['id'],
+        'check_in': {'$gte': today_start}
+    })
+    
+    if existing:
+        raise HTTPException(status_code=400, detail='Already checked in today')
+    
+    attendance_doc = {
+        'user_id': current_user['id'],
+        'check_in': datetime.now(timezone.utc),
+        'location_lat': location_lat,
+        'location_lng': location_lng,
+        'location_address': location_address,
+        'status': 'present'
+    }
+    
+    result = await db.attendance.insert_one(attendance_doc)
+    return {'id': str(result.inserted_id), 'message': 'Checked in successfully'}
+
+@api_router.post('/attendance/check-out')
+async def check_out(current_user: dict = Depends(get_current_user)):
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    attendance = await db.attendance.find_one({
+        'user_id': current_user['id'],
+        'check_in': {'$gte': today_start},
+        'check_out': None
+    })
+    
+    if not attendance:
+        raise HTTPException(status_code=400, detail='No active check-in found')
+    
+    await db.attendance.update_one(
+        {'_id': attendance['_id']},
+        {'$set': {'check_out': datetime.now(timezone.utc)}}
+    )
+    
+    return {'message': 'Checked out successfully'}
+
+@api_router.get('/attendance')
+async def list_attendance(
+    user_id: Optional[str] = None,
+    from_date: Optional[datetime] = None,
+    to_date: Optional[datetime] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if user_id:
+        query['user_id'] = user_id
+    if from_date:
+        query.setdefault('check_in', {})['$gte'] = from_date
+    if to_date:
+        query.setdefault('check_in', {})['$lte'] = to_date
+    
+    records = await db.attendance.find(query).sort('check_in', -1).to_list(100)
+    for record in records:
+        record['id'] = str(record['_id'])
+        del record['_id']
+    return records
+
+# ===== Tasks =====
+
+@api_router.post('/tasks')
+async def create_task(task: Task, current_user: dict = Depends(get_current_user)):
+    task.assigned_by = current_user['id']
+    task_doc = task.model_dump(exclude={'id'})
+    result = await db.tasks.insert_one(task_doc)
+    return {'id': str(result.inserted_id), **task_doc}
+
+@api_router.get('/tasks')
+async def list_tasks(
+    assigned_to: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if assigned_to:
+        query['assigned_to'] = assigned_to
+    if status:
+        query['status'] = status
+    
+    tasks = await db.tasks.find(query).sort('created_at', -1).to_list(100)
+    for task in tasks:
+        task['id'] = str(task['_id'])
+        del task['_id']
+    return tasks
+
+@api_router.patch('/tasks/{task_id}')
+async def update_task(task_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Task not found')
+    return {'message': 'Task updated successfully'}
+
+# ===== Dashboard =====
+
+@api_router.get('/dashboard/stats')
+async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    total_leads = await db.leads.count_documents({})
+    active_projects = await db.projects.count_documents({'status': {'$in': ['planning', 'in_progress']}})
+    
+    pending_payments_agg = await db.payments.aggregate([
+        {'$match': {'status': 'pending'}},
+        {'$group': {'_id': None, 'total': {'$sum': '$amount'}}}
+    ]).to_list(1)
+    pending_payments = pending_payments_agg[0]['total'] if pending_payments_agg else 0
+    
+    low_stock_items = await db.inventory.count_documents({'$expr': {'$lte': ['$quantity', '$reorder_level']}})
+    pending_petty_cash = await db.petty_cash.count_documents({'status': 'pending'})
+    
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_attendance = await db.attendance.count_documents({'check_in': {'$gte': today_start}})
+    
+    return DashboardStats(
+        total_leads=total_leads,
+        active_projects=active_projects,
+        pending_payments=pending_payments,
+        low_stock_items=low_stock_items,
+        pending_petty_cash=pending_petty_cash,
+        today_attendance=today_attendance
+    )
+
+@api_router.get('/dashboard/recent-activities')
+async def get_recent_activities(current_user: dict = Depends(get_current_user)):
+    # Get recent leads
+    recent_leads = await db.leads.find({}).sort('created_at', -1).limit(5).to_list(5)
+    for lead in recent_leads:
+        lead['id'] = str(lead['_id'])
+        del lead['_id']
+        lead['type'] = 'lead'
+    
+    # Get recent projects
+    recent_projects = await db.projects.find({}).sort('created_at', -1).limit(5).to_list(5)
+    for project in recent_projects:
+        project['id'] = str(project['_id'])
+        del project['_id']
+        project['type'] = 'project'
+    
+    return {'leads': recent_leads, 'projects': recent_projects}
+
+# Health check
+@api_router.get('/')
 async def root():
-    return {"message": "Hello World"}
+    return {'message': 'BizFlow Central CRM API', 'status': 'operational'}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
+@app.on_event('shutdown')
 async def shutdown_db_client():
     client.close()
