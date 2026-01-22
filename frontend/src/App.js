@@ -164,7 +164,15 @@ function App() {
               path="/payments"
               element={
                 <ProtectedRoute>
-                  <FinancePage />
+                  <FinanceManagerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/finance"
+              element={
+                <ProtectedRoute>
+                  <FinanceManagerPage />
                 </ProtectedRoute>
               }
             />
