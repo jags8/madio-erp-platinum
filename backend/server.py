@@ -1241,8 +1241,46 @@ async def create_order(order: Order, current_user: dict = Depends(get_current_us
     order.net_total = order.subtotal - order.discount_amount + order.tax_amount
     order.balance_pending = order.net_total - order.advance_paid
     
+    # Auto-deduct inventory for order items
+    for item in order.order_items:
+        if item.product_code:
+            inventory_item = await db.inventory.find_one({'item_code': item.product_code})
+            if inventory_item:
+                await deduct_inventory(str(inventory_item['_id']), item.quantity)
+    
     order_doc = order.model_dump(exclude={'id'})
     result = await db.orders.insert_one(order_doc)
+    
+    # If order has linked quotation, mark customer as converted and create project
+    if order.linked_quotation_id:
+        quotation = await db.quotations.find_one({'_id': ObjectId(order.linked_quotation_id)})
+        if quotation:
+            # Update customer lifecycle
+            await db.customers.update_one(
+                {'_id': ObjectId(quotation['linked_customer_id'])},
+                {'$set': {'lifecycle_stage': 'Customer', 'updated_at': datetime.now(timezone.utc)}}
+            )
+            
+            # Auto-create project from order
+            customer = await db.customers.find_one({'_id': ObjectId(quotation['linked_customer_id'])})
+            if customer:
+                project_doc = {
+                    'business_area_id': order.business_area_id,
+                    'lead_id': quotation.get('linked_enquiry_id'),
+                    'name': f"{customer['full_name']} - {order.division} Project",
+                    'customer_name': customer['full_name'],
+                    'status': 'planning',
+                    'start_date': datetime.now(timezone.utc),
+                    'budget': order.net_total,
+                    'actual_cost': 0,
+                    'milestones': [],
+                    'assigned_team': [],
+                    'created_at': datetime.now(timezone.utc),
+                    'updated_at': datetime.now(timezone.utc),
+                    'linked_order_id': str(result.inserted_id)
+                }
+                await db.projects.insert_one(project_doc)
+    
     return {'id': str(result.inserted_id), **order_doc}
 
 @api_router.get('/orders')
