@@ -13,10 +13,32 @@ const API = `${BACKEND_URL}/api`;
 const EnquiriesPage = () => {
   const [kanban, setKanban] = useState({});
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [formData, setFormData] = useState({
+    linked_customer_id: '',
+    division: 'Furniture',
+    product_category: '',
+    requirement_summary: '',
+    budget_range_min: '',
+    budget_range_max: '',
+    enquiry_source: 'Walk-in',
+    priority: 'Medium'
+  });
 
   useEffect(() => {
     fetchEnquiries();
+    fetchCustomers();
   }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get(`${API}/customers`);
+      setCustomers(response.data);
+    } catch (error) {
+      console.error('Failed to load customers');
+    }
+  };
 
   const fetchEnquiries = async () => {
     try {
@@ -26,6 +48,33 @@ const EnquiriesPage = () => {
       toast.error('Failed to load enquiries');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...formData,
+        budget_range_min: formData.budget_range_min ? parseFloat(formData.budget_range_min) : null,
+        budget_range_max: formData.budget_range_max ? parseFloat(formData.budget_range_max) : null
+      };
+      await axios.post(`${API}/enquiries`, payload);
+      toast.success('Enquiry created successfully');
+      setDialogOpen(false);
+      setFormData({
+        linked_customer_id: '',
+        division: 'Furniture',
+        product_category: '',
+        requirement_summary: '',
+        budget_range_min: '',
+        budget_range_max: '',
+        enquiry_source: 'Walk-in',
+        priority: 'Medium'
+      });
+      fetchEnquiries();
+    } catch (error) {
+      toast.error('Failed to create enquiry');
     }
   };
 
