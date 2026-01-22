@@ -264,6 +264,14 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/team"
+              element={
+                <ProtectedRoute>
+                  <TeamManagementPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
           <Toaster position="top-right" richColors />
         </div>
