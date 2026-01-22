@@ -137,6 +137,108 @@ const OrdersPage = () => {
           </Button>
         </div>
 
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="add-order-button" className="rounded-sm uppercase tracking-wider">
+              <Plus className="w-4 h-4 mr-2" strokeWidth={1.5} />
+              New Order
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-md max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-2xl">Create Order</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="customer">Customer *</Label>
+                <Select
+                  value={formData.linked_customer_id}
+                  onValueChange={(value) => setFormData({ ...formData, linked_customer_id: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.full_name} - {customer.phone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="quotation">Approved Quotation *</Label>
+                <Select
+                  value={formData.linked_quotation_id}
+                  onValueChange={(value) => setFormData({ ...formData, linked_quotation_id: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select quotation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {quotations.map((quot) => (
+                      <SelectItem key={quot.id} value={quot.id}>
+                        {quot.quotation_no} - ₹{quot.net_total.toLocaleString()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="division">Division *</Label>
+                  <Select
+                    value={formData.division}
+                    onValueChange={(value) => setFormData({ ...formData, division: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Furniture">Furniture</SelectItem>
+                      <SelectItem value="MAP Paints">MAP Paints</SelectItem>
+                      <SelectItem value="Doors & Windows">Doors & Windows</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="advance_paid">Advance Amount (₹) *</Label>
+                  <Input
+                    id="advance_paid"
+                    type="number"
+                    step="0.01"
+                    value={formData.advance_paid}
+                    onChange={(e) => setFormData({ ...formData, advance_paid: e.target.value })}
+                    required
+                    placeholder="50000"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="delivery_days">Expected Delivery (Days)</Label>
+                <Input
+                  id="delivery_days"
+                  type="number"
+                  value={formData.expected_delivery_days}
+                  onChange={(e) => setFormData({ ...formData, expected_delivery_days: e.target.value })}
+                  min="1"
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="w-full rounded-sm uppercase tracking-wider">
+                Create Order
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         <Tabs value={selectedDivision} onValueChange={setSelectedDivision}>
           <TabsList>
             <TabsTrigger value="all">All Orders</TabsTrigger>
