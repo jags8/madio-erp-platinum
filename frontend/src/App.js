@@ -19,6 +19,8 @@ import AttendancePage from './pages/AttendancePage';
 import TasksPage from './pages/TasksPage';
 import BusinessAreasPage from './pages/BusinessAreasPage';
 import ExecutiveDashboardPage from './pages/ExecutiveDashboardPage';
+import VideoGenerationPage from './pages/VideoGenerationPage';
+import ReportsPage from './pages/ReportsPage';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
