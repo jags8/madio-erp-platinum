@@ -204,6 +204,218 @@ class DashboardStats(BaseModel):
     pending_petty_cash: int
     today_attendance: int
 
+# ===== Master CRM Customer Hub =====
+class Customer(BaseModel):
+    id: Optional[str] = None
+    customer_type: str  # 'Individual', 'Architect', 'Builder', 'Corporate'
+    full_name: str
+    company_name: Optional[str] = None
+    phone: str
+    whatsapp: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    pincode: Optional[str] = None
+    gstin: Optional[str] = None
+    source: str  # 'Walk-in', 'Architect Referral', 'Website', 'WhatsApp', 'Existing'
+    assigned_salesperson: Optional[str] = None
+    linked_divisions: List[str] = []  # 'Furniture', 'MAP Paints', 'Doors & Windows'
+    lifecycle_stage: str = 'Lead'  # 'Lead', 'Prospect', 'Customer', 'VIP', 'Inactive'
+    lifetime_value: float = 0.0
+    notes: Optional[str] = None
+    tags: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== Enquiry & Lead Module =====
+class Enquiry(BaseModel):
+    id: Optional[str] = None
+    enquiry_id: str
+    linked_customer_id: str
+    division: str  # 'Furniture', 'MAP Paints', 'Doors & Windows'
+    product_category: Optional[str] = None
+    requirement_summary: str
+    budget_range_min: Optional[float] = None
+    budget_range_max: Optional[float] = None
+    site_visit_date: Optional[datetime] = None
+    site_visit_notes: Optional[str] = None
+    assigned_staff: Optional[str] = None
+    enquiry_source: str
+    status: str = 'New Enquiry'  # 'New Enquiry', 'Contacted', 'Site Visit Scheduled', 'Design/Estimation Ongoing', 'Quotation Shared', 'Lost'
+    lost_reason: Optional[str] = None
+    priority: str = 'Medium'  # 'Low', 'Medium', 'High', 'Urgent'
+    follow_up_date: Optional[datetime] = None
+    attachments: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== Quotation Module =====
+class QuotationLineItem(BaseModel):
+    item_no: int
+    description: str
+    product_code: Optional[str] = None
+    quantity: float
+    unit: str
+    unit_price: float
+    discount_percent: float = 0.0
+    tax_percent: float = 0.0
+    line_total: float
+
+class Quotation(BaseModel):
+    id: Optional[str] = None
+    quotation_no: str
+    version: int = 1
+    linked_customer_id: str
+    linked_enquiry_id: Optional[str] = None
+    division: str
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    valid_till: datetime
+    line_items: List[QuotationLineItem] = []
+    subtotal: float = 0.0
+    discount_amount: float = 0.0
+    tax_amount: float = 0.0
+    net_total: float = 0.0
+    terms_conditions: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = 'Draft'  # 'Draft', 'Sent', 'Revised', 'Approved', 'Rejected', 'Expired'
+    approved_date: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+    prepared_by: str
+    attachments: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== Order Management (Division-Specific) =====
+class OrderItem(BaseModel):
+    item_no: int
+    description: str
+    product_code: Optional[str] = None
+    quantity: float
+    unit: str
+    unit_price: float
+    discount_percent: float = 0.0
+    tax_percent: float = 0.0
+    line_total: float
+    # Division-specific fields
+    material_type: Optional[str] = None
+    finish: Optional[str] = None
+    shade_code: Optional[str] = None
+    hardware_spec: Optional[str] = None
+
+class Order(BaseModel):
+    id: Optional[str] = None
+    order_no: str
+    linked_customer_id: str
+    linked_quotation_id: Optional[str] = None
+    division: str
+    order_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    order_items: List[OrderItem] = []
+    subtotal: float = 0.0
+    discount_amount: float = 0.0
+    tax_amount: float = 0.0
+    net_total: float = 0.0
+    advance_paid: float = 0.0
+    balance_pending: float = 0.0
+    
+    # Common fields
+    status: str = 'Order Confirmed'
+    priority: str = 'Normal'
+    expected_delivery_date: Optional[datetime] = None
+    actual_delivery_date: Optional[datetime] = None
+    
+    # Furniture-specific
+    custom_dimensions: Optional[str] = None
+    factory_assigned: Optional[str] = None
+    design_approval_date: Optional[datetime] = None
+    production_start_date: Optional[datetime] = None
+    production_end_date: Optional[datetime] = None
+    polishing_date: Optional[datetime] = None
+    installation_date: Optional[datetime] = None
+    installer_assigned: Optional[str] = None
+    
+    # Paints-specific
+    batch_no: Optional[str] = None
+    mfg_date: Optional[datetime] = None
+    tinting_completed: bool = False
+    ready_for_pickup: bool = False
+    
+    # Doors & Windows-specific
+    glass_type: Optional[str] = None
+    measurement_date: Optional[datetime] = None
+    fabrication_start_date: Optional[datetime] = None
+    fabrication_end_date: Optional[datetime] = None
+    
+    notes: Optional[str] = None
+    attachments: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== Payment & Invoicing =====
+class PaymentRecord(BaseModel):
+    id: Optional[str] = None
+    payment_id: str
+    linked_order_id: str
+    invoice_no: Optional[str] = None
+    payment_type: str  # 'Advance', 'Milestone', 'Balance', 'Full'
+    amount: float
+    payment_mode: str  # 'Cash', 'Cheque', 'UPI', 'NEFT/RTGS', 'Card'
+    payment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    transaction_ref: Optional[str] = None
+    receipt_url: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = 'Received'  # 'Pending', 'Received', 'Failed', 'Refunded'
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== Delivery & Installation =====
+class DeliveryInstallation(BaseModel):
+    id: Optional[str] = None
+    linked_order_id: str
+    division: str
+    delivery_date: Optional[datetime] = None
+    installation_date: Optional[datetime] = None
+    team_assigned: List[str] = []
+    vehicle_no: Optional[str] = None
+    site_photos: List[str] = []
+    issues_logged: Optional[str] = None
+    completion_confirmed: bool = False
+    completion_date: Optional[datetime] = None
+    customer_signature: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== After-Sales & Reviews =====
+class Review(BaseModel):
+    id: Optional[str] = None
+    linked_customer_id: str
+    linked_order_id: str
+    rating: int  # 1-5
+    feedback_text: Optional[str] = None
+    is_complaint: bool = False
+    complaint_category: Optional[str] = None
+    resolution_status: str = 'Open'  # 'Open', 'In Progress', 'Resolved', 'Closed'
+    resolved_by: Optional[str] = None
+    resolved_date: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ServiceTicket(BaseModel):
+    id: Optional[str] = None
+    ticket_id: str
+    linked_order_id: str
+    linked_customer_id: str
+    issue_type: str  # 'Defect', 'Maintenance', 'Warranty Claim', 'Complaint', 'Other'
+    issue_description: str
+    priority: str = 'Medium'  # 'Low', 'Medium', 'High', 'Critical'
+    status: str = 'Open'  # 'Open', 'Assigned', 'In Progress', 'Resolved', 'Closed'
+    assigned_technician: Optional[str] = None
+    scheduled_date: Optional[datetime] = None
+    closure_date: Optional[datetime] = None
+    resolution_notes: Optional[str] = None
+    attachments: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # ===== Helper Functions =====
 
 def hash_pin(pin: str) -> str:
