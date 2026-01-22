@@ -13,8 +13,18 @@ const API = `${BACKEND_URL}/api`;
 
 const OrdersPage = () => {
   const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDivision, setSelectedDivision] = useState('all');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    linked_customer_id: '',
+    linked_quotation_id: '',
+    division: 'Furniture',
+    advance_paid: 0,
+    expected_delivery_days: 30
+  });
 
   useEffect(() => {
     fetchOrders();
