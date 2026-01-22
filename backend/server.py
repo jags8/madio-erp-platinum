@@ -847,6 +847,463 @@ async def get_recent_activities(current_user: dict = Depends(get_current_user)):
     
     return {'leads': recent_leads, 'projects': recent_projects}
 
+# ===== Master CRM Customer Hub =====
+
+@api_router.post('/customers')
+async def create_customer(customer: Customer, current_user: dict = Depends(get_current_user)):
+    customer_doc = customer.model_dump(exclude={'id'})
+    result = await db.customers.insert_one(customer_doc)
+    return {'id': str(result.inserted_id), **customer_doc}
+
+@api_router.get('/customers')
+async def list_customers(
+    customer_type: Optional[str] = None,
+    lifecycle_stage: Optional[str] = None,
+    division: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if customer_type:
+        query['customer_type'] = customer_type
+    if lifecycle_stage:
+        query['lifecycle_stage'] = lifecycle_stage
+    if division:
+        query['linked_divisions'] = division
+    if search:
+        query['$or'] = [
+            {'full_name': {'$regex': search, '$options': 'i'}},
+            {'phone': {'$regex': search, '$options': 'i'}},
+            {'email': {'$regex': search, '$options': 'i'}}
+        ]
+    
+    customers = await db.customers.find(query).sort('created_at', -1).to_list(200)
+    for customer in customers:
+        customer['id'] = str(customer['_id'])
+        del customer['_id']
+    return customers
+
+@api_router.get('/customers/{customer_id}')
+async def get_customer(customer_id: str, current_user: dict = Depends(get_current_user)):
+    customer = await db.customers.find_one({'_id': ObjectId(customer_id)})
+    if not customer:
+        raise HTTPException(status_code=404, detail='Customer not found')
+    customer['id'] = str(customer['_id'])
+    del customer['_id']
+    return customer
+
+@api_router.patch('/customers/{customer_id}')
+async def update_customer(customer_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.customers.update_one({'_id': ObjectId(customer_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Customer not found')
+    return {'message': 'Customer updated successfully'}
+
+# ===== Enquiry & Lead Module =====
+
+@api_router.post('/enquiries')
+async def create_enquiry(enquiry: Enquiry, current_user: dict = Depends(get_current_user)):
+    # Generate enquiry ID
+    count = await db.enquiries.count_documents({})
+    enquiry.enquiry_id = f'ENQ-{datetime.now().strftime("%Y%m")}-{count + 1:04d}'
+    
+    enquiry_doc = enquiry.model_dump(exclude={'id'})
+    result = await db.enquiries.insert_one(enquiry_doc)
+    return {'id': str(result.inserted_id), **enquiry_doc}
+
+@api_router.get('/enquiries')
+async def list_enquiries(
+    division: Optional[str] = None,
+    status: Optional[str] = None,
+    assigned_staff: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if division:
+        query['division'] = division
+    if status:
+        query['status'] = status
+    if assigned_staff:
+        query['assigned_staff'] = assigned_staff
+    
+    enquiries = await db.enquiries.find(query).sort('created_at', -1).to_list(200)
+    for enq in enquiries:
+        enq['id'] = str(enq['_id'])
+        del enq['_id']
+    return enquiries
+
+@api_router.get('/enquiries/kanban')
+async def get_enquiries_kanban(
+    division: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if division:
+        query['division'] = division
+    
+    enquiries = await db.enquiries.find(query).to_list(200)
+    
+    # Group by status for Kanban
+    kanban = {
+        'New Enquiry': [],
+        'Contacted': [],
+        'Site Visit Scheduled': [],
+        'Design/Estimation Ongoing': [],
+        'Quotation Shared': [],
+        'Lost': []
+    }
+    
+    for enq in enquiries:
+        enq['id'] = str(enq['_id'])
+        del enq['_id']
+        if enq['status'] in kanban:
+            kanban[enq['status']].append(enq)
+    
+    return kanban
+
+@api_router.patch('/enquiries/{enquiry_id}')
+async def update_enquiry(enquiry_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.enquiries.update_one({'_id': ObjectId(enquiry_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Enquiry not found')
+    return {'message': 'Enquiry updated successfully'}
+
+# ===== Quotation Module =====
+
+@api_router.post('/quotations')
+async def create_quotation(quotation: Quotation, current_user: dict = Depends(get_current_user)):
+    # Generate quotation number
+    count = await db.quotations.count_documents({})
+    quotation.quotation_no = f'QT-{datetime.now().strftime("%Y%m")}-{count + 1:04d}'
+    quotation.prepared_by = current_user['id']
+    
+    # Calculate totals
+    quotation.subtotal = sum(item.line_total for item in quotation.line_items)
+    quotation.net_total = quotation.subtotal - quotation.discount_amount + quotation.tax_amount
+    
+    quotation_doc = quotation.model_dump(exclude={'id'})
+    result = await db.quotations.insert_one(quotation_doc)
+    return {'id': str(result.inserted_id), **quotation_doc}
+
+@api_router.get('/quotations')
+async def list_quotations(
+    customer_id: Optional[str] = None,
+    division: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if customer_id:
+        query['linked_customer_id'] = customer_id
+    if division:
+        query['division'] = division
+    if status:
+        query['status'] = status
+    
+    quotations = await db.quotations.find(query).sort('created_at', -1).to_list(200)
+    for quot in quotations:
+        quot['id'] = str(quot['_id'])
+        del quot['_id']
+    return quotations
+
+@api_router.patch('/quotations/{quotation_id}')
+async def update_quotation(quotation_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.quotations.update_one({'_id': ObjectId(quotation_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Quotation not found')
+    return {'message': 'Quotation updated successfully'}
+
+@api_router.post('/quotations/{quotation_id}/approve')
+async def approve_quotation(quotation_id: str, current_user: dict = Depends(get_current_user)):
+    update = {
+        'status': 'Approved',
+        'approved_date': datetime.now(timezone.utc),
+        'updated_at': datetime.now(timezone.utc)
+    }
+    result = await db.quotations.update_one({'_id': ObjectId(quotation_id)}, {'$set': update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Quotation not found')
+    return {'message': 'Quotation approved successfully'}
+
+# ===== Order Management =====
+
+@api_router.post('/orders')
+async def create_order(order: Order, current_user: dict = Depends(get_current_user)):
+    # Generate order number
+    count = await db.orders.count_documents({})
+    order.order_no = f'ORD-{datetime.now().strftime("%Y%m")}-{count + 1:04d}'
+    
+    # Calculate totals
+    order.subtotal = sum(item.line_total for item in order.order_items)
+    order.net_total = order.subtotal - order.discount_amount + order.tax_amount
+    order.balance_pending = order.net_total - order.advance_paid
+    
+    order_doc = order.model_dump(exclude={'id'})
+    result = await db.orders.insert_one(order_doc)
+    return {'id': str(result.inserted_id), **order_doc}
+
+@api_router.get('/orders')
+async def list_orders(
+    customer_id: Optional[str] = None,
+    division: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if customer_id:
+        query['linked_customer_id'] = customer_id
+    if division:
+        query['division'] = division
+    if status:
+        query['status'] = status
+    
+    orders = await db.orders.find(query).sort('order_date', -1).to_list(200)
+    for order in orders:
+        order['id'] = str(order['_id'])
+        del order['_id']
+    return orders
+
+@api_router.get('/orders/{order_id}')
+async def get_order(order_id: str, current_user: dict = Depends(get_current_user)):
+    order = await db.orders.find_one({'_id': ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail='Order not found')
+    order['id'] = str(order['_id'])
+    del order['_id']
+    return order
+
+@api_router.patch('/orders/{order_id}')
+async def update_order(order_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.orders.update_one({'_id': ObjectId(order_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Order not found')
+    return {'message': 'Order updated successfully'}
+
+# ===== Payment Records =====
+
+@api_router.post('/payment-records')
+async def create_payment_record(payment: PaymentRecord, current_user: dict = Depends(get_current_user)):
+    # Generate payment ID
+    count = await db.payment_records.count_documents({})
+    payment.payment_id = f'PAY-{datetime.now().strftime("%Y%m")}-{count + 1:04d}'
+    payment.created_by = current_user['id']
+    
+    payment_doc = payment.model_dump(exclude={'id'})
+    result = await db.payment_records.insert_one(payment_doc)
+    
+    # Update order balance
+    order = await db.orders.find_one({'_id': ObjectId(payment.linked_order_id)})
+    if order:
+        new_balance = order.get('balance_pending', 0) - payment.amount
+        await db.orders.update_one(
+            {'_id': ObjectId(payment.linked_order_id)},
+            {'$set': {'balance_pending': new_balance}}
+        )
+    
+    return {'id': str(result.inserted_id), **payment_doc}
+
+@api_router.get('/payment-records')
+async def list_payment_records(
+    order_id: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if order_id:
+        query['linked_order_id'] = order_id
+    if status:
+        query['status'] = status
+    
+    payments = await db.payment_records.find(query).sort('payment_date', -1).to_list(200)
+    for payment in payments:
+        payment['id'] = str(payment['_id'])
+        del payment['_id']
+    return payments
+
+# ===== Delivery & Installation =====
+
+@api_router.post('/delivery-installation')
+async def create_delivery(delivery: DeliveryInstallation, current_user: dict = Depends(get_current_user)):
+    delivery_doc = delivery.model_dump(exclude={'id'})
+    result = await db.delivery_installation.insert_one(delivery_doc)
+    return {'id': str(result.inserted_id), **delivery_doc}
+
+@api_router.get('/delivery-installation')
+async def list_deliveries(
+    order_id: Optional[str] = None,
+    division: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if order_id:
+        query['linked_order_id'] = order_id
+    if division:
+        query['division'] = division
+    
+    deliveries = await db.delivery_installation.find(query).sort('created_at', -1).to_list(200)
+    for delivery in deliveries:
+        delivery['id'] = str(delivery['_id'])
+        del delivery['_id']
+    return deliveries
+
+@api_router.patch('/delivery-installation/{delivery_id}')
+async def update_delivery(delivery_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.delivery_installation.update_one({'_id': ObjectId(delivery_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Delivery record not found')
+    return {'message': 'Delivery updated successfully'}
+
+# ===== Reviews & Service Tickets =====
+
+@api_router.post('/reviews')
+async def create_review(review: Review, current_user: dict = Depends(get_current_user)):
+    review_doc = review.model_dump(exclude={'id'})
+    result = await db.reviews.insert_one(review_doc)
+    return {'id': str(result.inserted_id), **review_doc}
+
+@api_router.get('/reviews')
+async def list_reviews(
+    customer_id: Optional[str] = None,
+    order_id: Optional[str] = None,
+    is_complaint: Optional[bool] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if customer_id:
+        query['linked_customer_id'] = customer_id
+    if order_id:
+        query['linked_order_id'] = order_id
+    if is_complaint is not None:
+        query['is_complaint'] = is_complaint
+    
+    reviews = await db.reviews.find(query).sort('created_at', -1).to_list(200)
+    for review in reviews:
+        review['id'] = str(review['_id'])
+        del review['_id']
+    return reviews
+
+@api_router.post('/service-tickets')
+async def create_service_ticket(ticket: ServiceTicket, current_user: dict = Depends(get_current_user)):
+    # Generate ticket ID
+    count = await db.service_tickets.count_documents({})
+    ticket.ticket_id = f'TKT-{datetime.now().strftime("%Y%m")}-{count + 1:04d}'
+    
+    ticket_doc = ticket.model_dump(exclude={'id'})
+    result = await db.service_tickets.insert_one(ticket_doc)
+    return {'id': str(result.inserted_id), **ticket_doc}
+
+@api_router.get('/service-tickets')
+async def list_service_tickets(
+    customer_id: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if customer_id:
+        query['linked_customer_id'] = customer_id
+    if status:
+        query['status'] = status
+    if priority:
+        query['priority'] = priority
+    
+    tickets = await db.service_tickets.find(query).sort('created_at', -1).to_list(200)
+    for ticket in tickets:
+        ticket['id'] = str(ticket['_id'])
+        del ticket['_id']
+    return tickets
+
+@api_router.patch('/service-tickets/{ticket_id}')
+async def update_service_ticket(ticket_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    updates['updated_at'] = datetime.now(timezone.utc)
+    result = await db.service_tickets.update_one({'_id': ObjectId(ticket_id)}, {'$set': updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Service ticket not found')
+    return {'message': 'Service ticket updated successfully'}
+
+# ===== Executive Dashboards =====
+
+@api_router.get('/dashboard/executive')
+async def get_executive_dashboard(current_user: dict = Depends(get_current_user)):
+    # Sales KPIs
+    total_customers = await db.customers.count_documents({})
+    total_enquiries = await db.enquiries.count_documents({})
+    enquiries_converted = await db.enquiries.count_documents({'status': 'Quotation Shared'})
+    conversion_rate = (enquiries_converted / total_enquiries * 100) if total_enquiries > 0 else 0
+    
+    # Orders & Revenue
+    orders_pipeline = [
+        {'$group': {
+            '_id': None,
+            'total_orders': {'$sum': 1},
+            'total_revenue': {'$sum': '$net_total'},
+            'avg_order_value': {'$avg': '$net_total'}
+        }}
+    ]
+    orders_stats = await db.orders.aggregate(orders_pipeline).to_list(1)
+    orders_data = orders_stats[0] if orders_stats else {'total_orders': 0, 'total_revenue': 0, 'avg_order_value': 0}
+    
+    # Payments
+    pending_amount_pipeline = [
+        {'$group': {'_id': None, 'total_pending': {'$sum': '$balance_pending'}}}
+    ]
+    pending_stats = await db.orders.aggregate(pending_amount_pipeline).to_list(1)
+    total_pending = pending_stats[0]['total_pending'] if pending_stats else 0
+    
+    # Deliveries
+    pending_deliveries = await db.delivery_installation.count_documents({'completion_confirmed': False})
+    
+    # Reviews & Complaints
+    total_reviews = await db.reviews.count_documents({})
+    avg_rating_pipeline = [
+        {'$group': {'_id': None, 'avg_rating': {'$avg': '$rating'}}}
+    ]
+    rating_stats = await db.reviews.aggregate(avg_rating_pipeline).to_list(1)
+    avg_rating = rating_stats[0]['avg_rating'] if rating_stats else 0
+    
+    open_complaints = await db.reviews.count_documents({'is_complaint': True, 'resolution_status': {'$ne': 'Closed'}})
+    open_tickets = await db.service_tickets.count_documents({'status': {'$ne': 'Closed'}})
+    
+    # Division-wise breakdown
+    division_pipeline = [
+        {'$group': {
+            '_id': '$division',
+            'total_orders': {'$sum': 1},
+            'total_revenue': {'$sum': '$net_total'}
+        }}
+    ]
+    division_stats = await db.orders.aggregate(division_pipeline).to_list(10)
+    
+    return {
+        'sales': {
+            'total_customers': total_customers,
+            'total_enquiries': total_enquiries,
+            'conversion_rate': round(conversion_rate, 2),
+            'total_orders': orders_data['total_orders'],
+            'total_revenue': orders_data['total_revenue'],
+            'avg_order_value': orders_data['avg_order_value']
+        },
+        'finance': {
+            'total_pending_amount': total_pending,
+            'total_collected': orders_data['total_revenue'] - total_pending
+        },
+        'operations': {
+            'pending_deliveries': pending_deliveries
+        },
+        'customer_experience': {
+            'total_reviews': total_reviews,
+            'avg_rating': round(avg_rating, 2),
+            'open_complaints': open_complaints,
+            'open_tickets': open_tickets
+        },
+        'divisions': division_stats
+    }
+
 # Health check
 @api_router.get('/')
 async def root():
