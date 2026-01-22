@@ -121,6 +121,7 @@ class InventoryItem(BaseModel):
     item_code: str
     category: str
     quantity: int
+    reserved: int = 0  # Reserved for quotations
     unit: str
     reorder_level: int
     unit_price: float
@@ -128,6 +129,40 @@ class InventoryItem(BaseModel):
     last_restocked: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===== Video Generation =====
+class VideoGenerationRequest(BaseModel):
+    prompt: str
+    duration: int = 5  # seconds
+    aspect_ratio: str = '16:9'  # '16:9', '9:16', '1:1'
+    style: str = 'realistic'  # 'realistic', 'animated', 'artistic'
+
+class VideoGeneration(BaseModel):
+    id: Optional[str] = None
+    video_id: str
+    user_id: str
+    prompt: str
+    duration: int
+    aspect_ratio: str
+    style: str
+    status: str = 'processing'  # 'processing', 'completed', 'failed'
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    completed_at: Optional[datetime] = None
+
+# ===== AI Inventory Insights =====
+class InventoryInsight(BaseModel):
+    item_id: str
+    item_name: str
+    insight_type: str  # 'slow_moving', 'overstock', 'reorder_needed', 'high_demand'
+    current_quantity: int
+    reserved: int
+    avg_monthly_sales: float
+    days_of_stock: int
+    recommendation: str
+    priority: str  # 'low', 'medium', 'high', 'urgent'
 
 class Payment(BaseModel):
     id: Optional[str] = None
