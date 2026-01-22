@@ -1,0 +1,173 @@
+{
+  "identity": {
+    "name": "E1",
+    "role": "Anti-AI Designer",
+    "mission": "Create a premium, architectural CRM that breaks the generic SaaS mold."
+  },
+  "design_philosophy": {
+    "theme": "Archetype 5: Jewel & Luxury (Light Mode Variant)",
+    "core_principles": [
+      "Fusion over Imitation: Mix Architectural Precision with Luxury Hospitality warmth.",
+      "Content is King: Data is the art. Present numbers like exhibits in a gallery.",
+      "Negative Space: Use 'Museum Margins' (p-8 to p-12) to frame content.",
+      "Contrast: Sharp black text on bone-white backgrounds. No gray-on-gray."
+    ],
+    "anti_patterns": [
+      "No 'SaaS Blue' (#3B82F6).",
+      "No generic 'Inter' font for headings.",
+      "No fully rounded buttons (Pill shape). Use sharp or slightly soft corners (2px).",
+      "No dense, cluttered grids without breathing room."
+    ]
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Playfair Display, serif",
+      "usage": "All H1, H2, H3, and major section titles.",
+      "weights": "Bold (700) or Black (900)",
+      "tracking": "tracking-tight (-0.02em)",
+      "className": "font-serif tracking-tight"
+    },
+    "body": {
+      "font_family": "Manrope, sans-serif",
+      "usage": "Paragraphs, UI labels, data tables, inputs.",
+      "weights": "Regular (400), Medium (500)",
+      "className": "font-sans"
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace",
+      "usage": "Financial data, IDs, technical specs.",
+      "className": "font-mono"
+    }
+  },
+  "colors": {
+    "palette": {
+      "background": "hsl(40, 20%, 98%)", 
+      "foreground": "hsl(220, 15%, 10%)",
+      "card": "hsl(0, 0%, 100%)",
+      "card_foreground": "hsl(220, 15%, 10%)",
+      "primary": "hsl(160, 35%, 25%)",
+      "primary_foreground": "hsl(0, 0%, 100%)",
+      "secondary": "hsl(35, 30%, 90%)",
+      "secondary_foreground": "hsl(220, 15%, 10%)",
+      "muted": "hsl(40, 10%, 94%)",
+      "muted_foreground": "hsl(220, 10%, 40%)",
+      "accent": "hsl(35, 60%, 50%)",
+      "accent_foreground": "hsl(0, 0%, 100%)",
+      "destructive": "hsl(0, 84%, 60%)",
+      "destructive_foreground": "hsl(0, 0%, 98%)",
+      "border": "hsl(220, 10%, 90%)",
+      "input": "hsl(220, 10%, 90%)",
+      "ring": "hsl(160, 35%, 25%)"
+    },
+    "usage_rules": [
+      "Background is NOT pure white. Use the 'Bone' off-white for the main app background.",
+      "Cards are pure white to pop against the bone background.",
+      "Primary color (Deep Emerald) is for primary actions and active states only.",
+      "Accent color (Muted Gold) is for high-value alerts or premium badges."
+    ]
+  },
+  "layout": {
+    "spacing_system": {
+      "base": "p-6",
+      "container_padding": "p-8 md:p-12",
+      "section_gap": "gap-8",
+      "component_gap": "gap-4"
+    },
+    "grid_strategy": {
+      "dashboard": "Bento Grid (Mode A: Tetris). Mix col-span-1, col-span-2, and row-span-2 items.",
+      "lists": "High Density (Mode B). Use tables with sticky headers.",
+      "mobile": "Single column (grid-cols-1). Stack everything vertically."
+    },
+    "border_radius": {
+      "default": "rounded-sm (2px)",
+      "cards": "rounded-md (6px)",
+      "buttons": "rounded-sm (2px) - Sharp architectural look"
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp edges, uppercase text, wide tracking.",
+      "classes": "rounded-sm uppercase tracking-wider font-medium"
+    },
+    "cards": {
+      "style": "Flat white, subtle border, no shadow (or very subtle).",
+      "classes": "bg-card border border-border/60 shadow-sm hover:shadow-md transition-all duration-300"
+    },
+    "inputs": {
+      "style": "Minimalist, bottom border focus or solid light background.",
+      "classes": "bg-white/50 border-input focus:ring-1 focus:ring-primary"
+    },
+    "navigation": {
+      "style": "Sidebar for desktop, Bottom sheet/nav for mobile.",
+      "classes": "bg-background/95 backdrop-blur-md border-r border-border"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": {
+      "usage": "Overlays, sticky headers, toasts.",
+      "classes": "bg-white/80 backdrop-blur-xl border-b border-white/20"
+    },
+    "textures": {
+      "usage": "Subtle noise overlay on the main background to give a 'paper' feel.",
+      "css": "background-image: url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E\");"
+    },
+    "shadows": {
+      "usage": "Soft, diffuse shadows. No harsh black shadows.",
+      "classes": "shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]"
+    }
+  },
+  "assets": {
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px (Thin/Elegant).",
+      "installation": "yarn add lucide-react"
+    },
+    "images": {
+      "furniture_hero": {
+        "url": "https://images.unsplash.com/photo-1760072513442-9872656c1b07",
+        "alt": "Luxury minimalist living room with Poliform style furniture",
+        "usage": "Furniture Business Area Card / Hero"
+      },
+      "paints_hero": {
+        "url": "https://images.unsplash.com/photo-1675741954819-18ceaf53eb9c",
+        "alt": "Premium paint cans on wooden table",
+        "usage": "Paints Business Area Card / Hero"
+      },
+      "windows_hero": {
+        "url": "https://images.unsplash.com/photo-1758448756207-54505680d130",
+        "alt": "Modern house with expansive floor-to-ceiling windows",
+        "usage": "Doors & Windows Business Area Card / Hero"
+      },
+      "login_bg": {
+        "url": "https://images.unsplash.com/photo-1615634364452-8daf3851f2f1",
+        "alt": "Urban architecture at sunset",
+        "usage": "Login Screen Background"
+      }
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-out",
+    "hover_effects": "hover:-translate-y-1 hover:shadow-lg",
+    "page_transition": "initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}"
+  },
+  "accessibility": {
+    "contrast": "Ensure text is #1A1A1A on #FAFAFA backgrounds.",
+    "focus_states": "Visible ring-2 ring-primary ring-offset-2.",
+    "reduced_motion": "Respect prefers-reduced-motion media query."
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALL FONTS: Add '@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700;900&display=swap');' to index.css.",
+    "2. UPDATE TAILWIND: Configure the colors in tailwind.config.js to match the 'colors' section above exactly.",
+    "3. CLEANUP: Remove default App.css styles. Apply the 'textures' CSS to the body in index.css.",
+    "4. COMPONENTS: When using shadcn components, override the default 'rounded-md' with 'rounded-sm' in the component files or via utility classes.",
+    "5. LAYOUT: Build the Dashboard using the 'Bento Grid' strategy. Do not just stack cards.",
+    "6. IMAGES: Use the provided Unsplash URLs for the respective sections.",
+    "7. TESTING: Add 'data-testid' to all interactive elements."
+  ],
+  "universal_guidelines": [
+    "Avoid 'AI Slop' (generic, centered, blue/gray designs).",
+    "Use 2-3x more padding than you think is necessary.",
+    "Never use pure black (#000000). Use #0A0A0A or #111827.",
+    "Always add hover states to interactive elements."
+  ]
+}
