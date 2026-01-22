@@ -62,7 +62,8 @@ const OrdersPage = () => {
     } catch (error) {
       toast.error('Failed to load orders');
     } finally {
-      setLoading(false);\n    }
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
