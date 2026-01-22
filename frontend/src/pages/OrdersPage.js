@@ -28,7 +28,27 @@ const OrdersPage = () => {
 
   useEffect(() => {
     fetchOrders();
+    fetchCustomers();
+    fetchQuotations();
   }, [selectedDivision]);
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get(`${API}/customers`);
+      setCustomers(response.data);
+    } catch (error) {
+      console.error('Failed to load customers');
+    }
+  };
+
+  const fetchQuotations = async () => {
+    try {
+      const response = await axios.get(`${API}/quotations`, { params: { status: 'Approved' } });
+      setQuotations(response.data);
+    } catch (error) {
+      console.error('Failed to load quotations');
+    }
+  };
 
   const fetchOrders = async () => {
     try {
