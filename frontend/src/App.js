@@ -14,6 +14,7 @@ import LeadsPage from './pages/LeadsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import InventoryPage from './pages/InventoryPage';
 import FinancePage from './pages/FinancePage';
+import FinanceManagerPage from './pages/FinanceManagerPage';
 import PettyCashPage from './pages/PettyCashPage';
 import AttendancePage from './pages/AttendancePage';
 import TasksPage from './pages/TasksPage';
