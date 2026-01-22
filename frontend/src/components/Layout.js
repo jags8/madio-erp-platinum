@@ -15,14 +15,15 @@ const Layout = ({ children }) => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Building2, label: 'Business Areas', path: '/business-areas' },
-    { icon: Users, label: 'Leads', path: '/leads' },
-    { icon: FolderKanban, label: 'Projects', path: '/projects' },
+    { icon: Users, label: 'Customers', path: '/customers' },
+    { icon: Building2, label: 'Enquiries', path: '/enquiries' },
+    { icon: FolderKanban, label: 'Quotations', path: '/quotations' },
+    { icon: CheckSquare, label: 'Orders', path: '/orders' },
+    { icon: DollarSign, label: 'Payments', path: '/payments' },
     { icon: Package, label: 'Inventory', path: '/inventory' },
-    { icon: DollarSign, label: 'Finance', path: '/finance' },
     { icon: Wallet, label: 'Petty Cash', path: '/petty-cash' },
     { icon: Clock, label: 'Attendance', path: '/attendance' },
-    { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
+    { icon: LayoutDashboard, label: 'Executive', path: '/executive' },
   ];
 
   const handleLogout = () => {
