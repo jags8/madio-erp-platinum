@@ -4,7 +4,7 @@ import { useAuth } from '../App';
 import { Button } from '@/components/ui/button';
 import {
   Building2, LayoutDashboard, Users, FolderKanban, Package,
-  DollarSign, Wallet, Clock, CheckSquare, LogOut, Menu, X
+  DollarSign, Wallet, Clock, CheckSquare, LogOut, Menu, X, Video, FileText
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
