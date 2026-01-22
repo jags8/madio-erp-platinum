@@ -695,6 +695,95 @@ async def update_inventory(item_id: str, updates: dict, current_user: dict = Dep
         raise HTTPException(status_code=404, detail='Inventory item not found')
     return {'message': 'Inventory updated successfully'}
 
+@api_router.get('/inventory/insights')
+async def get_inventory_insights(current_user: dict = Depends(get_current_user)):
+    """AI-powered inventory insights"""
+    # Get all inventory items
+    items = await db.inventory.find({}).to_list(500)
+    insights = []
+    
+    for item in items:
+        item_id = str(item['_id'])
+        quantity = item.get('quantity', 0)
+        reserved = item.get('reserved', 0)
+        reorder_level = item.get('reorder_level', 0)
+        available = quantity - reserved
+        
+        # Calculate average monthly sales (from orders)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        sales_pipeline = [
+            {'$unwind': '$order_items'},
+            {'$match': {
+                'order_date': {'$gte': thirty_days_ago},
+                'order_items.item_code': item.get('item_code')
+            }},
+            {'$group': {
+                '_id': None,
+                'total_sold': {'$sum': '$order_items.quantity'}
+            }}
+        ]
+        sales_result = await db.orders.aggregate(sales_pipeline).to_list(1)
+        total_sold = sales_result[0]['total_sold'] if sales_result else 0
+        avg_monthly_sales = total_sold
+        
+        # Calculate days of stock
+        days_of_stock = (available / avg_monthly_sales * 30) if avg_monthly_sales > 0 else 999
+        
+        # Generate insights
+        if days_of_stock > 90 and quantity > reorder_level * 2:
+            insights.append({
+                'item_id': item_id,
+                'item_name': item['item_name'],
+                'insight_type': 'overstock',
+                'current_quantity': quantity,
+                'reserved': reserved,
+                'avg_monthly_sales': avg_monthly_sales,
+                'days_of_stock': int(days_of_stock),
+                'recommendation': f'Consider promotional pricing. Stock will last {int(days_of_stock)} days',
+                'priority': 'medium'
+            })
+        elif days_of_stock < 30 and avg_monthly_sales > 0:
+            insights.append({
+                'item_id': item_id,
+                'item_name': item['item_name'],
+                'insight_type': 'slow_moving',
+                'current_quantity': quantity,
+                'reserved': reserved,
+                'avg_monthly_sales': avg_monthly_sales,
+                'days_of_stock': int(days_of_stock),
+                'recommendation': f'Low turnover. Average sales: {avg_monthly_sales:.1f}/month',
+                'priority': 'low'
+            })
+        
+        if available <= reorder_level:
+            priority = 'urgent' if available < reorder_level * 0.5 else 'high'
+            insights.append({
+                'item_id': item_id,
+                'item_name': item['item_name'],
+                'insight_type': 'reorder_needed',
+                'current_quantity': quantity,
+                'reserved': reserved,
+                'avg_monthly_sales': avg_monthly_sales,
+                'days_of_stock': int(days_of_stock),
+                'recommendation': f'Reorder immediately. Only {available} units available',
+                'priority': priority
+            })
+        
+        if avg_monthly_sales > reorder_level * 1.5:
+            insights.append({
+                'item_id': item_id,
+                'item_name': item['item_name'],
+                'insight_type': 'high_demand',
+                'current_quantity': quantity,
+                'reserved': reserved,
+                'avg_monthly_sales': avg_monthly_sales,
+                'days_of_stock': int(days_of_stock),
+                'recommendation': f'High demand item. Consider increasing stock levels',
+                'priority': 'medium'
+            })
+    
+    return sorted(insights, key=lambda x: {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}[x['priority']])
+
 # ===== Finance =====
 
 @api_router.post('/payments')
