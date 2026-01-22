@@ -125,6 +125,54 @@ function App() {
               }
             />
             <Route
+              path="/customers"
+              element={
+                <ProtectedRoute>
+                  <CustomersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/enquiries"
+              element={
+                <ProtectedRoute>
+                  <EnquiriesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quotations"
+              element={
+                <ProtectedRoute>
+                  <QuotationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payments"
+              element={
+                <ProtectedRoute>
+                  <FinancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/executive"
+              element={
+                <ProtectedRoute>
+                  <ExecutiveDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/business-areas"
               element={
                 <ProtectedRoute>
