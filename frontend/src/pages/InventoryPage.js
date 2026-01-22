@@ -14,7 +14,21 @@ const API = `${BACKEND_URL}/api`;
 const InventoryPage = () => {
   const [inventory, setInventory] = React.useState([]);
   const [insights, setInsights] = React.useState([]);
+  const [businessAreas, setBusinessAreas] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [formData, setFormData] = React.useState({
+    business_area_id: '',
+    store_location: '',
+    item_name: '',
+    item_code: '',
+    category: '',
+    quantity: 0,
+    unit: 'pcs',
+    reorder_level: 0,
+    unit_price: 0,
+    supplier: ''
+  });
 
   React.useEffect(() => {
     fetchData();
@@ -22,16 +36,48 @@ const InventoryPage = () => {
 
   const fetchData = async () => {
     try {
-      const [invRes, insightsRes] = await Promise.all([
+      const [invRes, insightsRes, areasRes] = await Promise.all([
         axios.get(`${API}/inventory`),
-        axios.get(`${API}/inventory/insights`)
+        axios.get(`${API}/inventory/insights`),
+        axios.get(`${API}/business-areas`)
       ]);
       setInventory(invRes.data);
       setInsights(insightsRes.data);
+      setBusinessAreas(areasRes.data);
     } catch (error) {
       toast.error('Failed to load inventory data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...formData,
+        quantity: parseInt(formData.quantity),
+        reorder_level: parseInt(formData.reorder_level),
+        unit_price: parseFloat(formData.unit_price)
+      };
+      await axios.post(`${API}/inventory`, payload);
+      toast.success('Inventory item added successfully');
+      setDialogOpen(false);
+      setFormData({
+        business_area_id: '',
+        store_location: '',
+        item_name: '',
+        item_code: '',
+        category: '',
+        quantity: 0,
+        unit: 'pcs',
+        reorder_level: 0,
+        unit_price: 0,
+        supplier: ''
+      });
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to add inventory item');
     }
   };
 
