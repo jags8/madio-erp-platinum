@@ -123,6 +123,146 @@ const EnquiriesPage = () => {
           </Button>
         </div>
 
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="rounded-sm uppercase tracking-wider">
+              <Plus className="w-4 h-4 mr-2" strokeWidth={1.5} />
+              New Enquiry
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-md max-h-[90vh] overflow-y-auto max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-2xl">New Enquiry</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="customer">Customer *</Label>
+                <Select
+                  value={formData.linked_customer_id}
+                  onValueChange={(value) => setFormData({ ...formData, linked_customer_id: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.full_name} - {customer.phone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="division">Division *</Label>
+                  <Select
+                    value={formData.division}
+                    onValueChange={(value) => setFormData({ ...formData, division: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Furniture">Furniture</SelectItem>
+                      <SelectItem value="MAP Paints">MAP Paints</SelectItem>
+                      <SelectItem value="Doors & Windows">Doors & Windows</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="product_category">Product Category</Label>
+                  <Input
+                    id="product_category"
+                    value={formData.product_category}
+                    onChange={(e) => setFormData({ ...formData, product_category: e.target.value })}
+                    placeholder="e.g., Sofa Set, Wall Paint"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="requirement_summary">Requirement Summary *</Label>
+                <Textarea
+                  id="requirement_summary"
+                  value={formData.requirement_summary}
+                  onChange={(e) => setFormData({ ...formData, requirement_summary: e.target.value })}
+                  required
+                  rows={3}
+                  placeholder="Describe customer requirements..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="budget_min">Budget Min (₹)</Label>
+                  <Input
+                    id="budget_min"
+                    type="number"
+                    value={formData.budget_range_min}
+                    onChange={(e) => setFormData({ ...formData, budget_range_min: e.target.value })}
+                    placeholder="50000"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="budget_max">Budget Max (₹)</Label>
+                  <Input
+                    id="budget_max"
+                    type="number"
+                    value={formData.budget_range_max}
+                    onChange={(e) => setFormData({ ...formData, budget_range_max: e.target.value })}
+                    placeholder="100000"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="source">Enquiry Source *</Label>
+                  <Select
+                    value={formData.enquiry_source}
+                    onValueChange={(value) => setFormData({ ...formData, enquiry_source: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Walk-in">Walk-in</SelectItem>
+                      <SelectItem value="Architect Referral">Architect Referral</SelectItem>
+                      <SelectItem value="Website">Website</SelectItem>
+                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                      <SelectItem value="Phone Call">Phone Call</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="priority">Priority</Label>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full rounded-sm uppercase tracking-wider">
+                Create Enquiry
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {Object.keys(kanban).map((status) => (
