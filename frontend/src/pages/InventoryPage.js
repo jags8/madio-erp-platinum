@@ -124,10 +124,147 @@ const InventoryPage = () => {
             <h1 className="text-4xl font-serif font-bold tracking-tight mb-2">Inventory Management</h1>
             <p className="text-muted-foreground">AI-powered stock insights and management</p>
           </div>
-          <Button className="rounded-sm uppercase tracking-wider">
-            <Plus className="w-4 h-4 mr-2" strokeWidth={1.5} />
-            Add Item
-          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="add-inventory-button" className="rounded-sm uppercase tracking-wider">
+                <Plus className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                Add Item
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-md max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="font-serif text-2xl">Add Inventory Item</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="business_area">Business Area *</Label>
+                  <Select
+                    value={formData.business_area_id}
+                    onValueChange={(value) => setFormData({ ...formData, business_area_id: value })}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select business area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {businessAreas.map((area) => (
+                        <SelectItem key={area.id} value={area.id}>{area.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="item_name">Item Name *</Label>
+                    <Input
+                      id="item_name"
+                      value={formData.item_name}
+                      onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
+                      required
+                      placeholder="Premium Oak Table"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="item_code">Item Code *</Label>
+                    <Input
+                      id="item_code"
+                      value={formData.item_code}
+                      onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
+                      required
+                      placeholder="FURN-001"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="category">Category *</Label>
+                    <Input
+                      id="category"
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      required
+                      placeholder="Tables"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="store_location">Store Location *</Label>
+                    <Input
+                      id="store_location"
+                      value={formData.store_location}
+                      onChange={(e) => setFormData({ ...formData, store_location: e.target.value })}
+                      required
+                      placeholder="Mumbai Showroom"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="quantity">Quantity *</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                      required
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="unit">Unit *</Label>
+                    <Input
+                      id="unit"
+                      value={formData.unit}
+                      onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                      required
+                      placeholder="pcs"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="reorder_level">Reorder Level *</Label>
+                    <Input
+                      id="reorder_level"
+                      type="number"
+                      value={formData.reorder_level}
+                      onChange={(e) => setFormData({ ...formData, reorder_level: e.target.value })}
+                      required
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="unit_price">Unit Price (₹) *</Label>
+                    <Input
+                      id="unit_price"
+                      type="number"
+                      step="0.01"
+                      value={formData.unit_price}
+                      onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
+                      required
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="supplier">Supplier</Label>
+                    <Input
+                      id="supplier"
+                      value={formData.supplier}
+                      onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                      placeholder="Supplier name"
+                    />
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full rounded-sm uppercase tracking-wider">
+                  Add Inventory Item
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Tabs defaultValue="insights" className="w-full">
