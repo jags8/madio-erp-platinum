@@ -697,42 +697,68 @@ async def update_inventory(item_id: str, updates: dict, current_user: dict = Dep
 
 @api_router.get('/inventory/insights')
 async def get_inventory_insights(current_user: dict = Depends(get_current_user)):
-    """AI-powered inventory insights"""
-    # Get all inventory items
-    items = await db.inventory.find({}).to_list(500)
+    """AI-powered inventory insights - Optimized with aggregation"""
     insights = []
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     
-    for item in items:
-        item_id = str(item['_id'])
+    # Single aggregation pipeline for all inventory analysis
+    pipeline = [
+        {
+            '$lookup': {
+                'from': 'orders',
+                'let': {'item_code': '$item_code'},
+                'pipeline': [
+                    {'$match': {'order_date': {'$gte': thirty_days_ago}}},
+                    {'$unwind': '$order_items'},
+                    {'$match': {'$expr': {'$eq': ['$order_items.item_code', '$$item_code']}}},
+                    {'$group': {'_id': None, 'total_sold': {'$sum': '$order_items.quantity'}}}
+                ],
+                'as': 'sales_data'
+            }
+        },
+        {
+            '$addFields': {
+                'total_sold': {'$ifNull': [{'$arrayElemAt': ['$sales_data.total_sold', 0]}, 0]},
+                'available': {'$subtract': ['$quantity', {'$ifNull': ['$reserved', 0]}]},
+                'item_id': {'$toString': '$_id'}
+            }
+        },
+        {
+            '$project': {
+                '_id': 0,
+                'item_id': 1,
+                'item_name': 1,
+                'quantity': 1,
+                'reserved': {'$ifNull': ['$reserved', 0]},
+                'available': 1,
+                'reorder_level': 1,
+                'total_sold': 1,
+                'avg_monthly_sales': '$total_sold',
+                'days_of_stock': {
+                    '$cond': [
+                        {'$gt': ['$total_sold', 0]},
+                        {'$multiply': [{'$divide': ['$available', '$total_sold']}, 30]},
+                        999
+                    ]
+                }
+            }
+        }
+    ]
+    
+    results = await db.inventory.aggregate(pipeline).to_list(500)
+    
+    for item in results:
         quantity = item.get('quantity', 0)
         reserved = item.get('reserved', 0)
+        available = item.get('available', 0)
         reorder_level = item.get('reorder_level', 0)
-        available = quantity - reserved
+        avg_monthly_sales = item.get('avg_monthly_sales', 0)
+        days_of_stock = item.get('days_of_stock', 999)
         
-        # Calculate average monthly sales (from orders)
-        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-        sales_pipeline = [
-            {'$unwind': '$order_items'},
-            {'$match': {
-                'order_date': {'$gte': thirty_days_ago},
-                'order_items.item_code': item.get('item_code')
-            }},
-            {'$group': {
-                '_id': None,
-                'total_sold': {'$sum': '$order_items.quantity'}
-            }}
-        ]
-        sales_result = await db.orders.aggregate(sales_pipeline).to_list(1)
-        total_sold = sales_result[0]['total_sold'] if sales_result else 0
-        avg_monthly_sales = total_sold
-        
-        # Calculate days of stock
-        days_of_stock = (available / avg_monthly_sales * 30) if avg_monthly_sales > 0 else 999
-        
-        # Generate insights
+        # Generate insights based on aggregated data
         if days_of_stock > 90 and quantity > reorder_level * 2:
             insights.append({
-                'item_id': item_id,
+                'item_id': item['item_id'],
                 'item_name': item['item_name'],
                 'insight_type': 'overstock',
                 'current_quantity': quantity,
@@ -744,7 +770,7 @@ async def get_inventory_insights(current_user: dict = Depends(get_current_user))
             })
         elif days_of_stock < 30 and avg_monthly_sales > 0:
             insights.append({
-                'item_id': item_id,
+                'item_id': item['item_id'],
                 'item_name': item['item_name'],
                 'insight_type': 'slow_moving',
                 'current_quantity': quantity,
@@ -758,7 +784,7 @@ async def get_inventory_insights(current_user: dict = Depends(get_current_user))
         if available <= reorder_level:
             priority = 'urgent' if available < reorder_level * 0.5 else 'high'
             insights.append({
-                'item_id': item_id,
+                'item_id': item['item_id'],
                 'item_name': item['item_name'],
                 'insight_type': 'reorder_needed',
                 'current_quantity': quantity,
@@ -771,7 +797,7 @@ async def get_inventory_insights(current_user: dict = Depends(get_current_user))
         
         if avg_monthly_sales > reorder_level * 1.5:
             insights.append({
-                'item_id': item_id,
+                'item_id': item['item_id'],
                 'item_name': item['item_name'],
                 'insight_type': 'high_demand',
                 'current_quantity': quantity,
