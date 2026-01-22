@@ -23,6 +23,8 @@ const Layout = ({ children }) => {
     { icon: Package, label: 'Inventory', path: '/inventory' },
     { icon: Wallet, label: 'Petty Cash', path: '/petty-cash' },
     { icon: Clock, label: 'Attendance', path: '/attendance' },
+    { icon: Video, label: 'AI Videos', path: '/video-generation' },
+    { icon: FileText, label: 'Reports', path: '/reports' },
     { icon: LayoutDashboard, label: 'Executive', path: '/executive' },
   ];
 
