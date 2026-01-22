@@ -1152,8 +1152,23 @@ async def create_quotation(quotation: Quotation, current_user: dict = Depends(ge
     quotation.subtotal = sum(item.line_total for item in quotation.line_items)
     quotation.net_total = quotation.subtotal - quotation.discount_amount + quotation.tax_amount
     
+    # Auto-reserve inventory for line items
+    reservations = []
+    for item in quotation.line_items:
+        if item.product_code:
+            inventory_item = await db.inventory.find_one({'item_code': item.product_code})
+            if inventory_item:
+                reserved = await reserve_inventory(str(inventory_item['_id']), item.quantity)
+                if reserved:
+                    reservations.append({
+                        'item_id': str(inventory_item['_id']),
+                        'quantity': item.quantity
+                    })
+    
     quotation_doc = quotation.model_dump(exclude={'id'})
+    quotation_doc['inventory_reservations'] = reservations
     result = await db.quotations.insert_one(quotation_doc)
+    
     return {'id': str(result.inserted_id), **quotation_doc}
 
 @api_router.get('/quotations')
@@ -1179,6 +1194,13 @@ async def list_quotations(
 
 @api_router.patch('/quotations/{quotation_id}')
 async def update_quotation(quotation_id: str, updates: dict, current_user: dict = Depends(get_current_user)):
+    # Check if status is changing to 'Lost' or 'Rejected' - release reservations
+    if updates.get('status') in ['Lost', 'Rejected', 'Expired']:
+        quotation = await db.quotations.find_one({'_id': ObjectId(quotation_id)})
+        if quotation and quotation.get('inventory_reservations'):
+            for reservation in quotation['inventory_reservations']:
+                await release_inventory_reservation(reservation['item_id'], reservation['quantity'])
+    
     updates['updated_at'] = datetime.now(timezone.utc)
     result = await db.quotations.update_one({'_id': ObjectId(quotation_id)}, {'$set': updates})
     if result.matched_count == 0:
@@ -1195,6 +1217,15 @@ async def approve_quotation(quotation_id: str, current_user: dict = Depends(get_
     result = await db.quotations.update_one({'_id': ObjectId(quotation_id)}, {'$set': update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail='Quotation not found')
+    
+    # Update linked enquiry to 'Converted'
+    quotation = await db.quotations.find_one({'_id': ObjectId(quotation_id)})
+    if quotation and quotation.get('linked_enquiry_id'):
+        await db.enquiries.update_one(
+            {'_id': ObjectId(quotation['linked_enquiry_id'])},
+            {'$set': {'status': 'Converted', 'updated_at': datetime.now(timezone.utc)}}
+        )
+    
     return {'message': 'Quotation approved successfully'}
 
 # ===== Order Management =====
