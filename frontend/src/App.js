@@ -6,6 +6,10 @@ import { Toaster, toast } from 'sonner';
 
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import CustomersPage from './pages/CustomersPage';
+import EnquiriesPage from './pages/EnquiriesPage';
+import QuotationsPage from './pages/QuotationsPage';
+import OrdersPage from './pages/OrdersPage';
 import LeadsPage from './pages/LeadsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import InventoryPage from './pages/InventoryPage';
@@ -14,6 +18,7 @@ import PettyCashPage from './pages/PettyCashPage';
 import AttendancePage from './pages/AttendancePage';
 import TasksPage from './pages/TasksPage';
 import BusinessAreasPage from './pages/BusinessAreasPage';
+import ExecutiveDashboardPage from './pages/ExecutiveDashboardPage';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
