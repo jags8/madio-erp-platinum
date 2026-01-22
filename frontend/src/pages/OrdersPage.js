@@ -62,7 +62,44 @@ const OrdersPage = () => {
     } catch (error) {
       toast.error('Failed to load orders');
     } finally {
-      setLoading(false);
+      setLoading(false);\n    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const quotation = quotations.find(q => q.id === formData.linked_quotation_id);
+      if (!quotation) {
+        toast.error('Please select a quotation');
+        return;
+      }
+
+      const deliveryDate = new Date();
+      deliveryDate.setDate(deliveryDate.getDate() + parseInt(formData.expected_delivery_days));
+
+      const payload = {
+        linked_customer_id: formData.linked_customer_id,
+        linked_quotation_id: formData.linked_quotation_id,
+        division: formData.division,
+        order_items: quotation.line_items,
+        advance_paid: parseFloat(formData.advance_paid),
+        expected_delivery_date: deliveryDate.toISOString(),
+        business_area_id: formData.division
+      };
+
+      await axios.post(`${API}/orders`, payload);
+      toast.success('Order created successfully');
+      setDialogOpen(false);
+      setFormData({
+        linked_customer_id: '',
+        linked_quotation_id: '',
+        division: 'Furniture',
+        advance_paid: 0,
+        expected_delivery_days: 30
+      });
+      fetchOrders();
+    } catch (error) {
+      toast.error('Failed to create order');
     }
   };
 
