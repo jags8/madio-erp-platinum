@@ -238,6 +238,22 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/video-generation"
+              element={
+                <ProtectedRoute>
+                  <VideoGenerationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <ReportsPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
           <Toaster position="top-right" richColors />
         </div>
