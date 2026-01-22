@@ -22,6 +22,7 @@ import BusinessAreasPage from './pages/BusinessAreasPage';
 import ExecutiveDashboardPage from './pages/ExecutiveDashboardPage';
 import VideoGenerationPage from './pages/VideoGenerationPage';
 import ReportsPage from './pages/ReportsPage';
+import TeamManagementPage from './pages/TeamManagementPage';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
