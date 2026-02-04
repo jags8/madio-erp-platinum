@@ -1,0 +1,132 @@
+{
+  "brand_identity": {
+    "name": "MAP Premium Acrylic Paints",
+    "tagline": "Where Texture Becomes Architecture",
+    "archetype": "Organic & Earthy",
+    "emotional_tone": "Calm, Sophisticated, Tactile, Timeless",
+    "target_audience": "Architects, Interior Designers, Developers"
+  },
+  "typography": {
+    "font_family": {
+      "heading": "Playfair Display, serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "imports": [
+      "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,900;1,400&family=Manrope:wght@300;400;500;600&display=swap"
+    ],
+    "scale": {
+      "h1": "text-6xl md:text-8xl font-serif tracking-tight leading-[0.9]",
+      "h2": "text-4xl md:text-6xl font-serif tracking-tight",
+      "h3": "text-2xl md:text-3xl font-serif",
+      "body_lg": "text-lg md:text-xl font-sans font-light leading-relaxed",
+      "body": "text-base font-sans leading-relaxed text-muted-foreground",
+      "caption": "text-xs font-sans uppercase tracking-[0.2em] text-muted-foreground"
+    }
+  },
+  "colors": {
+    "palette": {
+      "background": "#F4F2EF",
+      "foreground": "#1A1918",
+      "card": "#FFFFFF",
+      "card_foreground": "#1A1918",
+      "primary": "#1A1918",
+      "primary_foreground": "#F4F2EF",
+      "secondary": "#E5E2DD",
+      "secondary_foreground": "#1A1918",
+      "muted": "#E5E2DD",
+      "muted_foreground": "#66625E",
+      "accent": "#A85A3F",
+      "accent_foreground": "#FFFFFF",
+      "border": "#D6D3CF",
+      "input": "#E5E2DD",
+      "ring": "#A85A3F"
+    },
+    "tailwind_config": {
+      "extend": {
+        "colors": {
+          "map-stone": "#E5E2DD",
+          "map-clay": "#A85A3F",
+          "map-charcoal": "#1A1918",
+          "map-paper": "#F4F2EF"
+        }
+      }
+    }
+  },
+  "layout_strategy": {
+    "grid_system": "Bento Grid (Asymmetrical)",
+    "spacing": {
+      "container_padding": "p-6 md:p-12 lg:p-24",
+      "section_gap": "gap-12 md:gap-24",
+      "element_gap": "gap-4 md:gap-8"
+    },
+    "modes": {
+      "brochure": "Editorial, generous whitespace, split-screen, sticky scrolling",
+      "admin": "Dense, functional, sidebar navigation, data tables"
+    }
+  },
+  "components": {
+    "custom_components": [
+      {
+        "name": "BrochureCover",
+        "description": "Full-bleed hero image with centered serif typography and subtle parallax."
+      },
+      {
+        "name": "TextureCard",
+        "description": "Minimalist card with large aspect ratio image, small serif title below, no border, subtle hover lift."
+      },
+      {
+        "name": "FinishDetail",
+        "description": "Split screen: Left side sticky image gallery, Right side scrollable specifications and story."
+      },
+      {
+        "name": "ApplicationShowcase",
+        "description": "Masonry grid of architectural examples with hover reveal details."
+      }
+    ],
+    "shadcn_customization": {
+      "radius": "0px",
+      "shadows": "none",
+      "borders": "1px solid #D6D3CF"
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "styles": {
+      "page_transition": "opacity: 0 -> 1, duration: 0.8s, ease: easeOut",
+      "text_reveal": "y: 20 -> 0, opacity: 0 -> 1, stagger: 0.1s",
+      "image_parallax": "scale: 1.1 -> 1.0 on scroll",
+      "hover_lift": "y: -4px, duration: 0.3s"
+    },
+    "scroll": "Lenis smooth scrolling mandatory for brochure pages"
+  },
+  "images": {
+    "hero_backgrounds": [
+      "https://images.unsplash.com/photo-1734215330444-679ebd7150ba?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1599209250215-1492d59fe7f0?crop=entropy&cs=srgb&fm=jpg&q=85"
+    ],
+    "textures": {
+      "cimento": "https://images.unsplash.com/photo-1599209250215-1492d59fe7f0?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "marmarino": "https://images.unsplash.com/photo-1597005591881-866e4eb57b69?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "terra_naturale": "https://images.unsplash.com/photo-1734215330444-679ebd7150ba?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "venetian": "https://images.unsplash.com/photo-1534162057773-55bd4a4b5ae1?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    "interiors": [
+      "https://images.unsplash.com/photo-1679494415048-c2f8d798d992?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1762803842055-de1e5fb14477?crop=entropy&cs=srgb&fm=jpg&q=85"
+    ],
+    "exteriors": [
+      "https://images.unsplash.com/photo-1622300649979-9e0ba9cc4594?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "https://images.unsplash.com/photo-1727031156526-c0430001d84f?crop=entropy&cs=srgb&fm=jpg&q=85"
+    ]
+  },
+  "universal_guidelines": [
+    "Do not use gradients. Use solid, earthy colors.",
+    "Avoid 'Inter' font for headings. Use Playfair Display.",
+    "Use 2x padding compared to standard web apps.",
+    "No rounded corners on cards (radius-none) to match architectural aesthetic.",
+    "Images must be high quality and treated as art pieces.",
+    "Admin panel should be distinct from the brochure (functional vs editorial)."
+  ],
+  "instructions_to_main_agent": "Implement the brochure viewer as the primary landing experience. The Admin panel should be on a separate route (/admin). Use the provided image URLs for the respective sections. Ensure the 'Organic & Earthy' color palette is applied globally in tailwind.config.js."
+}
