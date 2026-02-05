@@ -1,0 +1,26 @@
+{
+  "name": "Madio ERP Platinum - Complete Business Management",
+  "short_name": "Madio CRM",
+  "description": "Enterprise CRM for Madio Group - Furniture, MAP Paints, Doors & Windows divisions",
+  "theme_color": "#2B5F4C",
+  "background_color": "#FFFEF9",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "start_url": "/",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/logo192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/logo512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}
