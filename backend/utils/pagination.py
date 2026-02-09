@@ -1,68 +1,73 @@
-from typing import Optional, Dict, Any
-from bson import ObjectId
+"""Pagination utilities for API responses"""
+from typing import List, TypeVar, Generic, Optional
+from pydantic import BaseModel
+from math import ceil
 
-class Paginator:
-    """Cursor-based pagination for MongoDB collections"""
+T = TypeVar('T')
+
+class PaginationParams(BaseModel):
+    """Standard pagination parameters"""
+    page: int = 1
+    per_page: int = 20
     
-    @staticmethod
-    async def paginate(
-        collection,
-        query: Dict[str, Any],
-        limit: int = 50,
-        cursor: Optional[str] = None,
-        sort_field: str = '_id',
-        sort_direction: int = -1
-    ) -> dict:
-        """
-        Paginate MongoDB query with cursor-based pagination
+    @property
+    def skip(self) -> int:
+        return (self.page - 1) * self.per_page
+    
+    @property
+    def limit(self) -> int:
+        return self.per_page
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Standard paginated API response"""
+    data: List[T]
+    pagination: dict
+    
+    @classmethod
+    def create(
+        cls,
+        data: List[T],
+        page: int,
+        per_page: int,
+        total_count: int
+    ):
+        """Create paginated response with metadata"""
+        total_pages = ceil(total_count / per_page) if per_page > 0 else 0
         
-        Args:
-            collection: MongoDB collection
-            query: MongoDB query filter
-            limit: Number of items per page (max 100)
-            cursor: Cursor from previous page
-            sort_field: Field to sort by
-            sort_direction: 1 for ascending, -1 for descending
-        
-        Returns:
-            dict with 'data' and 'pagination' metadata
-        """
-        # Enforce max limit
-        limit = min(limit, 100)
-        
-        # Add cursor to query if provided
-        if cursor:
-            try:
-                cursor_value = ObjectId(cursor) if sort_field == '_id' else cursor
-                query[sort_field] = {'$lt' if sort_direction == -1 else '$gt': cursor_value}
-            except:
-                pass  # Invalid cursor, ignore
-        
-        # Fetch limit + 1 to check if there are more items
-        items = await collection.find(query).sort(sort_field, sort_direction).limit(limit + 1).to_list(limit + 1)
-        
-        # Check if there are more items
-        has_more = len(items) > limit
-        if has_more:
-            items = items[:limit]
-        
-        # Transform items
-        for item in items:
-            item['id'] = str(item['_id'])
-            del item['_id']
-        
-        # Prepare pagination metadata
-        next_cursor = None
-        if items and has_more:
-            last_item = items[-1]
-            next_cursor = last_item['id']
-        
-        return {
-            'data': items,
-            'pagination': {
-                'cursor': next_cursor,
-                'has_more': has_more,
-                'count': len(items),
-                'limit': limit
+        return cls(
+            data=data,
+            pagination={
+                "page": page,
+                "per_page": per_page,
+                "total_items": total_count,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1
             }
-        }
+        )
+
+class CursorPaginationParams(BaseModel):
+    """Cursor-based pagination for large datasets"""
+    cursor: Optional[str] = None
+    limit: int = 20
+
+class CursorPaginatedResponse(BaseModel, Generic[T]):
+    """Cursor-based paginated response"""
+    data: List[T]
+    pagination: dict
+    
+    @classmethod
+    def create(
+        cls,
+        data: List[T],
+        next_cursor: Optional[str] = None,
+        has_more: bool = False
+    ):
+        return cls(
+            data=data,
+            pagination={
+                "next_cursor": next_cursor,
+                "has_more": has_more,
+                "count": len(data)
+            }
+        )
